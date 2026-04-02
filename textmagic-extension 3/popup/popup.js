@@ -1,10 +1,10 @@
-// SnapText Popup v3.0.3
-
+// SnapText Popup v3.0.4
 let snippets = [];
 let settings = { toastEnabled: true, dropdownEnabled: true };
 let activeCat = 'Alle';
 let editingId  = null;
 let pageVars   = []; 
+let draftSnippet = null;
 
 const VARS = [
   ['{{date}}','Datum'], ['{{time}}','Zeit'], ['{{datetime}}','Datum+Zeit'],
@@ -14,7 +14,7 @@ const VARS = [
 ];
 
 async function init() {
-  const d = await chrome.storage.local.get(['snippets', 'settings']);
+  const d = await chrome.storage.local.get(['snippets', 'settings', 'draftSnippet']);
   snippets = d.snippets || [];
   if (d.settings) settings = { ...settings, ...d.settings };
 
@@ -27,7 +27,14 @@ async function init() {
   }
 
   buildVarTags();
-  renderAll();
+
+  // Prüfen, ob wir von einem Picker-Vorgang zurückkommen
+  if (d.draftSnippet) {
+    draftSnippet = d.draftSnippet;
+    openPanel(null, true);
+  } else {
+    renderAll();
+  }
 }
 
 function renderStats() {
@@ -93,32 +100,40 @@ function renderList() {
   });
 }
 
-function openPanel(sn = null) {
-  editingId = sn?.id || null;
-  pageVars  = [];
-
-  document.getElementById('pt').textContent = sn ? '✏ Bearbeiten' : '＋ Neues Snippet';
-  document.getElementById('f-t').value = sn ? sn.trigger : '';
-  document.getElementById('f-l').value = sn?.label || '';
-  document.getElementById('f-c').value = sn?.content || '';
-
-  if (sn) {
-    const re = /\{\{page:([^}]+)\}\}/g;
-    let m;
-    while ((m = re.exec(sn.content)) !== null) {
-      pageVars.push({ name: m[1], selector: m[1], preview: '' });
-    }
-  }
-
-  renderPageVars();
-  closePanelStatus();
-
+function openPanel(sn = null, fromDraft = false) {
   const panel = document.getElementById('panel');
   document.getElementById('spanel').classList.remove('open');
 
-  if (sn || !panel.classList.contains('open')) panel.classList.add('open');
-  else panel.classList.remove('open');
+  if (fromDraft && draftSnippet) {
+    editingId = draftSnippet.editingId || null;
+    document.getElementById('pt').textContent = editingId ? '✏ Bearbeiten' : '＋ Neues Snippet';
+    document.getElementById('f-t').value = draftSnippet.trigger || '';
+    document.getElementById('f-l').value = draftSnippet.label || '';
+    document.getElementById('f-c').value = draftSnippet.content || '';
+    pageVars = draftSnippet.pageVars || [];
+    panel.classList.add('open');
+  } else {
+    chrome.storage.local.remove('draftSnippet');
+    editingId = sn?.id || null;
+    pageVars  = [];
+    document.getElementById('pt').textContent = sn ? '✏ Bearbeiten' : '＋ Neues Snippet';
+    document.getElementById('f-t').value = sn ? sn.trigger : '';
+    document.getElementById('f-l').value = sn?.label || '';
+    document.getElementById('f-c').value = sn?.content || '';
 
+    if (sn) {
+      const re = /\{\{page:([^}]+)\}\}/g;
+      let m;
+      while ((m = re.exec(sn.content)) !== null) {
+        pageVars.push({ name: m[1], selector: m[1], preview: '' });
+      }
+    }
+    
+    if (sn || !panel.classList.contains('open')) panel.classList.add('open');
+    else panel.classList.remove('open');
+  }
+
+  renderPageVars();
   if (panel.classList.contains('open')) document.getElementById('f-t').focus();
 }
 
@@ -148,30 +163,22 @@ document.getElementById('btn-pick').onclick = async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) return alert('Kein aktiver Tab gefunden.');
 
-  if (tab.url?.startsWith('chrome://') || tab.url?.startsWith('chrome-extension://')) {
-    return alert('Picker funktioniert nicht auf internen Chrome-Seiten.');
-  }
+  // Speichere den aktuellen Bearbeitungsstand
+  const draft = {
+    trigger: document.getElementById('f-t').value,
+    label: document.getElementById('f-l').value,
+    content: document.getElementById('f-c').value,
+    pageVars: pageVars,
+    editingId: editingId
+  };
+  await chrome.storage.local.set({ draftSnippet: draft });
 
-  const pickBtn = document.getElementById('btn-pick');
-  pickBtn.disabled = true; pickBtn.textContent = '⏳ Warte auf Auswahl…';
-  showPickerStatus();
-
-  chrome.runtime.sendMessage(
-    { type: 'START_PICKER_FROM_POPUP', tabId: tab.id, varName: varName.trim() },
-    (result) => {
-      pickBtn.disabled = false; pickBtn.textContent = '🎯 Element auswählen';
-      closePanelStatus();
-      if (chrome.runtime.lastError || !result || result.error) return;
-
-      pageVars.push({ name: varName.trim(), selector: result.selector, preview: result.value || '' });
-      renderPageVars();
-      insertAt(document.getElementById('f-c'), `{{page:${result.selector}}}`);
-    }
-  );
+  // Starte den Picker im Hintergrund
+  chrome.runtime.sendMessage({ type: 'START_PICKER_FROM_POPUP', tabId: tab.id, varName: varName.trim() });
+  
+  // SCHLIESSE das Popup, damit der User auf der Seite klicken kann!
+  window.close(); 
 };
-
-function showPickerStatus() { document.getElementById('picker-status').classList.add('show'); }
-function closePanelStatus() { document.getElementById('picker-status').classList.remove('show'); }
 
 function renderPageVars() {
   const list = document.getElementById('pv-list'); list.innerHTML = '';
@@ -207,6 +214,7 @@ document.getElementById('btn-save').onclick = async () => {
     snippets.push({ id: crypto.randomUUID(), trigger, label, content, category: 'Allgemein', useCount: 0, createdAt: Date.now() });
   }
 
+  await chrome.storage.local.remove('draftSnippet'); // Entwurf löschen
   await persist();
   document.getElementById('panel').classList.remove('open');
   pageVars = [];

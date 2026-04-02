@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SnapText – Text Expander",
-  "version": "3.0.1",
-  "description": "Text-Expander mit Zendesk-Support und Framework-Kompatibilität.",
+  "version": "3.0.3",
+  "description": "Text-Expander mit Zendesk-Support, Element-Picker und freier Trigger-Wahl.",
   "permissions": [
     "storage",
     "activeTab",
@@ -19,17 +19,25 @@
     {
       "matches": ["<all_urls>"],
       "js": ["content/content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": false
     }
   ],
   "action": {
-    "default_popup": "popup/popup.html"
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "options_ui": {
     "page": "options/options.html",
     "open_in_tab": true
   },
   "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   }
 }

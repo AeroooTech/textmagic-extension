@@ -1,4 +1,4 @@
-// SnapText Content Script v3.0.3
+// SnapText Content Script v3.0.4
 (function () {
   'use strict';
   if (window.__snapTextV3) return;
@@ -7,7 +7,7 @@
   let snippets = [];
   let settings = { toastEnabled: true, dropdownEnabled: true };
   let dropdown = null;
-  let pickerActive = false, pickerHoverEl = null, pickerBar = null, pickerTooltip = null;
+  let pickerActive = false, pickerHoverEl = null, pickerBar = null;
 
   chrome.storage.local.get(['snippets', 'settings'], (d) => {
     snippets = d.snippets || [];
@@ -29,7 +29,6 @@
       .replace(/\{\{month\}\}/g, ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'][now.getMonth()])
       .replace(/\{\{year\}\}/g, String(now.getFullYear()))
       .replace(/\{\{url\}\}/g, window.location.href)
-      .replace(/\{\{domain\}\}/g, window.location.hostname)
       .replace(/\{\{title\}\}/g, document.title);
 
     if (content.includes('{{clipboard}}')) {
@@ -48,36 +47,31 @@
     if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
       return el.value.substring(0, el.selectionStart);
     }
-    if (el.isContentEditable) {
-      const sel = window.getSelection();
-      if (!sel || !sel.rangeCount) return '';
-      const range = sel.getRangeAt(0).cloneRange();
-      try {
-        range.setStart(el, 0);
-        return range.toString().slice(-400);
-      } catch { return ''; }
+    const sel = window.getSelection();
+    if (!sel || !sel.anchorNode) return '';
+    if (sel.anchorNode.nodeType === Node.TEXT_NODE) {
+      return sel.anchorNode.textContent.substring(0, sel.anchorOffset);
     }
-    return '';
+    return sel.anchorNode.textContent || '';
   }
 
   async function expandSnippet(targetEl, snippet, charsToDelete) {
     hideDropdown();
     let content = await resolveVars(snippet.content);
     const hasCursor = content.includes('{{cursor}}');
-    const cursorIdx = hasCursor ? content.indexOf('{{cursor}}') : -1;
     const clean = content.replace('{{cursor}}', '');
 
     if (targetEl.tagName === 'INPUT' || targetEl.tagName === 'TEXTAREA') {
-      insertIntoInput(targetEl, clean, charsToDelete, hasCursor, cursorIdx);
+      insertIntoInput(targetEl, clean, charsToDelete);
     } else {
-      insertIntoContentEditable(targetEl, clean, charsToDelete, hasCursor, cursorIdx);
+      insertIntoContentEditable(targetEl, clean, charsToDelete);
     }
 
     chrome.runtime.sendMessage({ type: 'INCREMENT_USE', id: snippet.id });
     if (settings.toastEnabled !== false) showToast(snippet.label || snippet.trigger);
   }
 
-  function insertIntoInput(el, clean, triggerLen, hasCursor, cursorIdx) {
+  function insertIntoInput(el, clean, triggerLen) {
     const pos = el.selectionStart;
     const before = el.value.substring(0, Math.max(0, pos - triggerLen));
     const after  = el.value.substring(pos);
@@ -89,59 +83,20 @@
     if (setter) setter.call(el, fullText);
     else el.value = fullText;
 
-    el.dispatchEvent(new InputEvent('input',  { bubbles: true, inputType: 'insertText', data: clean }));
+    el.dispatchEvent(new InputEvent('input',  { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
-
-    const newPos = before.length + (hasCursor ? cursorIdx : clean.length);
-    el.setSelectionRange(newPos, newPos);
+    el.setSelectionRange(before.length + clean.length, before.length + clean.length);
     el.focus();
   }
 
-  function insertIntoContentEditable(el, clean, triggerLen, hasCursor, cursorIdx) {
-    const sel = window.getSelection();
-    if (!sel || !sel.rangeCount) return;
-    const range = sel.getRangeAt(0);
-
-    try {
-      const container = range.startContainer;
-      if (container.nodeType === Node.TEXT_NODE) {
-        const start = Math.max(0, range.startOffset - triggerLen);
-        range.setStart(container, start);
-        range.deleteContents();
-      }
-    } catch {}
-
-    const lines = clean.split('\n');
-    let cursorNode = null, cursorOff = 0, charCount = 0;
-
-    for (let i = 0; i < lines.length; i++) {
-      if (i > 0) {
-        const br = document.createElement('br');
-        range.insertNode(br);
-        range.setStartAfter(br);
-        range.collapse(true);
-      }
-      const tn = document.createTextNode(lines[i]);
-      range.insertNode(tn);
-      range.setStartAfter(tn);
-      range.collapse(true);
-
-      if (hasCursor && !cursorNode) {
-        const lineEnd = charCount + lines[i].length;
-        if (cursorIdx <= lineEnd) { cursorNode = tn; cursorOff = cursorIdx - charCount; }
-      }
-      charCount += lines[i].length + 1;
+  function insertIntoContentEditable(el, clean, triggerLen) {
+    el.focus();
+    // Native Browser-Funktion nutzen (extrem zuverlässig für Zendesk/React)
+    for(let i=0; i<triggerLen; i++) {
+      document.execCommand('delete', false);
     }
-
-    sel.removeAllRanges();
-    const nr = document.createRange();
-    if (hasCursor && cursorNode) nr.setStart(cursorNode, Math.min(cursorOff, cursorNode.length));
-    else nr.setStart(range.startContainer, range.startOffset);
-    nr.collapse(true);
-    sel.addRange(nr);
-
+    document.execCommand('insertText', false, clean);
     el.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: ' ', code: 'Space' }));
   }
 
   function mkEl(tag, styles = {}) { const el = document.createElement(tag); Object.assign(el.style, styles); return el; }
@@ -222,7 +177,6 @@
 
     const triggerWord = match[1];
     const trailingSpace = match[2];
-
     const exactMatch = snippets.find(s => s.trigger === triggerWord);
 
     if (exactMatch && (e.key === ' ' || e.key === 'Tab' || e.key === 'Enter')) {
@@ -249,18 +203,23 @@
 
   document.addEventListener('click', e => { if (dropdown && !dropdown.contains(e.target)) hideDropdown(); }, true);
 
+  // --- ELEMENT PICKER LOGIK ---
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-    if (msg.type === 'START_PICKER') { startPicker(msg.varName, sendResponse); return true; }
+    if (msg.type === 'START_PICKER') {
+      // Picker nur im Hauptfenster ausführen, um Chaos mit Iframes zu verhindern
+      if (window !== window.top) return;
+      startPicker(msg.varName); 
+    }
   });
 
-  function startPicker(varName, respondFn) {
+  function startPicker(varName) {
     if (pickerActive) return;
     pickerActive = true;
     pickerBar = mkEl('div', { position:'fixed', top:'0', left:'0', right:'0', height:'48px', background:'linear-gradient(90deg,#4338ca,#7c3aed)', color:'#fff', display:'flex', alignItems:'center', padding:'0 20px', zIndex:'2147483647', fontWeight:'600' });
     pickerBar.setAttribute('data-st-picker','1');
     pickerBar.innerHTML = `<span style="flex:1">🎯 Klicke auf das Element für <strong>"${varName}"</strong></span>`;
     const cancelBtn = mkEl('button', { background:'rgba(255,255,255,.15)', border:'1px solid rgba(255,255,255,.3)', color:'#fff', padding:'5px 14px', borderRadius:'7px', cursor:'pointer' });
-    cancelBtn.textContent = '✕ Abbrechen'; cancelBtn.onclick = () => { cancelPicker(); respondFn(null); };
+    cancelBtn.textContent = '✕ Abbrechen'; cancelBtn.onclick = () => { cancelPicker(); };
     pickerBar.appendChild(cancelBtn); document.body.appendChild(pickerBar);
 
     document.body.style.cursor = 'crosshair';
@@ -271,14 +230,26 @@
       pickerHoverEl._stOut = pickerHoverEl.style.outline; pickerHoverEl._stBg = pickerHoverEl.style.backgroundColor;
       pickerHoverEl.style.outline = '2px solid #6366f1'; pickerHoverEl.style.backgroundColor = 'rgba(99,102,241,.08)';
     };
-    const onClick = e => {
+    
+    // Wenn Element angeklickt wird: Speichere den Picker-Status direkt im Chrome-Storage!
+    const onClick = async e => {
       if (e.target.closest('[data-st-picker]')) return;
       e.preventDefault(); e.stopPropagation();
       const el = pickerHoverEl || e.target;
       const selector = buildSelector(el);
       const value = ('value' in el ? el.value : el.innerText || el.textContent || '').trim().slice(0, 80);
-      cancelPicker(); respondFn({ selector, value });
+      cancelPicker(); 
+
+      // Variablen-Entwurf laden und updaten
+      const d = await chrome.storage.local.get('draftSnippet');
+      const draft = d.draftSnippet || { pageVars: [] };
+      if (!draft.pageVars) draft.pageVars = [];
+      draft.pageVars.push({ name: varName, selector, preview: value });
+      await chrome.storage.local.set({ draftSnippet: draft });
+      
+      showToast(`🎯 Variable gespeichert! Öffne SnapText.`);
     };
+
     document.addEventListener('mouseover', onHover, true);
     document.addEventListener('click', onClick, true);
 

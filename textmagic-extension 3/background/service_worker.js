@@ -1,14 +1,15 @@
-// SnapText – Background Service Worker v3.0.1
+// SnapText – Background Service Worker v3.0.3
 chrome.runtime.onInstalled.addListener(async () => {
   const data = await chrome.storage.local.get('snippets');
   if (!data.snippets) {
     const defaults = [
       { id: crypto.randomUUID(), trigger: '/mfg', content: 'Mit freundlichen Grüßen,\n{{cursor}}', label: 'MFG Grußformel', category: 'E-Mail', useCount: 0, createdAt: Date.now() },
-      { id: crypto.randomUUID(), trigger: '/datum', content: '{{date}}', label: 'Heutiges Datum', category: 'Datum & Zeit', useCount: 0, createdAt: Date.now() }
+      { id: crypto.randomUUID(), trigger: '!datum', content: '{{date}}', label: 'Heutiges Datum', category: 'Datum & Zeit', useCount: 0, createdAt: Date.now() },
+      { id: crypto.randomUUID(), trigger: '#hallo', content: 'Hallo {{cursor}},\n\nvielen Dank für deine Nachricht.', label: 'Begrüßung', category: 'E-Mail', useCount: 0, createdAt: Date.now() }
     ];
     await chrome.storage.local.set({
       snippets: defaults,
-      settings: { prefix: '/', toastEnabled: true, dropdownEnabled: true }
+      settings: { toastEnabled: true, dropdownEnabled: true }
     });
   }
 
@@ -17,6 +18,20 @@ chrome.runtime.onInstalled.addListener(async () => {
       id: 'snaptext-save', title: '⚡ Als SnapText Snippet speichern', contexts: ['selection']
     });
   });
+});
+
+chrome.contextMenus.onClicked.addListener(async (info) => {
+  if (info.menuItemId === 'snaptext-save' && info.selectionText) {
+    const { snippets = [] } = await chrome.storage.local.get('snippets');
+    snippets.push({
+      id: crypto.randomUUID(),
+      trigger: '/' + 'neu' + Date.now().toString().slice(-4),
+      content: info.selectionText,
+      label: info.selectionText.slice(0, 40),
+      category: 'Allgemein', useCount: 0, createdAt: Date.now()
+    });
+    await chrome.storage.local.set({ snippets });
+  }
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {

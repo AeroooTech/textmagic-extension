@@ -1,4 +1,4 @@
-// SnapText – Background Service Worker
+// SnapText – Background Service Worker v3.0.1
 chrome.runtime.onInstalled.addListener(async () => {
   const data = await chrome.storage.local.get('snippets');
   if (!data.snippets) {
@@ -22,11 +22,10 @@ chrome.runtime.onInstalled.addListener(async () => {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'INCREMENT_USE') {
     chrome.storage.local.get('snippets').then(d => {
-      const snips = (d.snippets || []).map(s =>
+      const updated = (d.snippets || []).map(s =>
         s.id === msg.id ? { ...s, useCount: (s.useCount || 0) + 1 } : s
       );
-      // FIX: Korrekter Key 'snippets' statt 'snips'
-      chrome.storage.local.set({ snippets: snips });
+      chrome.storage.local.set({ snippets: updated });
     });
     return false;
   }
@@ -35,8 +34,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const { tabId, varName } = msg;
     chrome.scripting.executeScript({ target: { tabId }, files: ['content/content.js'] }, () => {
       setTimeout(() => {
-        chrome.tabs.sendMessage(tabId, { type: 'START_PICKER', varName }, (res) => {
-          sendResponse(res);
+        chrome.tabs.sendMessage(tabId, { type: 'START_PICKER', varName }, (result) => {
+          if (chrome.runtime.lastError) {
+            sendResponse({ error: chrome.runtime.lastError.message });
+          } else {
+            sendResponse(result);
+          }
         });
       }, 150);
     });

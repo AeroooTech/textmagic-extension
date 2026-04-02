@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>SnapText</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f0e1a;--s1:#18162e;--s2:#21203a;--s3:#2a2848;
+  --bdr:rgba(99,102,241,.2);--acc:#6366f1;--acc2:#8b5cf6;
+  --txt:#e0e7ff;--mut:#6b6e99;--grn:#34d399;--red:#f87171;--ylw:#fbbf24;
+}
+body{width:380px;min-height:480px;max-height:640px;background:var(--bg);color:var(--txt);
+  font-family:'DM Sans',system-ui,sans-serif;font-size:13px;
+  display:flex;flex-direction:column;overflow:hidden}
+
+/* ── Header ── */
+.hdr{background:var(--s1);padding:11px 13px;border-bottom:1px solid var(--bdr);
+  display:flex;align-items:center;gap:9px;flex-shrink:0}
+.logo{width:26px;height:26px;background:linear-gradient(135deg,var(--acc),var(--acc2));
+  border-radius:7px;display:flex;align-items:center;justify-content:center;
+  font-size:14px;box-shadow:0 0 12px rgba(99,102,241,.45);flex-shrink:0}
+.hdr-t{font-size:14px;font-weight:700;letter-spacing:-.3px}
+.hdr-t b{color:var(--acc)}
+.hdr-r{margin-left:auto;display:flex;gap:4px}
+.ib{width:26px;height:26px;border-radius:6px;border:1px solid var(--bdr);
+  background:var(--s2);color:var(--mut);cursor:pointer;display:flex;
+  align-items:center;justify-content:center;font-size:13px;transition:all .14s}
+.ib:hover{background:var(--s3);color:var(--txt);border-color:var(--acc)}
+.ib.on{background:rgba(99,102,241,.2);color:var(--acc);border-color:var(--acc)}
+
+/* ── Stats ── */
+.stats{display:flex;background:var(--s1);border-bottom:1px solid var(--bdr);flex-shrink:0}
+.stat{flex:1;padding:6px 0;text-align:center;border-right:1px solid var(--bdr)}
+.stat:last-child{border-right:none}
+.sv{font-size:14px;font-weight:700;color:var(--acc);font-family:'JetBrains Mono',monospace;line-height:1}
+.sl{font-size:9px;color:var(--mut);margin-top:1px;text-transform:uppercase;letter-spacing:.6px}
+
+/* ── Search ── */
+.sbar{padding:7px 10px;background:var(--s1);border-bottom:1px solid var(--bdr);flex-shrink:0}
+.srch{width:100%;background:var(--s2);border:1px solid var(--bdr);border-radius:7px;
+  padding:6px 10px 6px 28px;color:var(--txt);font-family:inherit;font-size:12px;outline:none;
+  transition:border-color .18s;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6e99' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:9px center}
+.srch:focus{border-color:var(--acc)}
+.srch::placeholder{color:var(--mut)}
+
+/* ── Cats ── */
+.cats{padding:5px 8px;display:flex;gap:4px;overflow-x:auto;
+  background:var(--s1);border-bottom:1px solid var(--bdr);flex-shrink:0}
+.cats::-webkit-scrollbar{display:none}
+.cp{padding:2px 9px;border-radius:20px;border:1px solid var(--bdr);
+  background:transparent;color:var(--mut);cursor:pointer;font-size:11px;
+  font-family:inherit;white-space:nowrap;transition:all .13s}
+.cp:hover,.cp.on{background:rgba(99,102,241,.16);border-color:var(--acc);color:var(--txt)}
+
+/* ── Snippet list ── */
+.list{flex:1;overflow-y:auto;padding:5px 7px;display:flex;flex-direction:column;gap:3px}
+.list::-webkit-scrollbar{width:3px}
+.list::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
+
+.sni{background:var(--s1);border:1px solid var(--bdr);border-radius:8px;
+  padding:7px 9px;display:flex;align-items:center;gap:7px;
+  cursor:default;transition:all .13s}
+.sni:hover{background:var(--s2);border-color:rgba(99,102,241,.45);transform:translateX(2px)}
+.trig{background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);
+  color:#a5b4fc;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:700;
+  padding:2px 6px;border-radius:4px;white-space:nowrap;flex-shrink:0}
+.si{flex:1;min-width:0}
+.sl2{font-size:12px;font-weight:600;color:var(--txt);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sp{font-size:10.5px;color:var(--mut);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.sacts{display:flex;gap:2px;opacity:0;transition:opacity .13s;flex-shrink:0}
+.sni:hover .sacts{opacity:1}
+.ab{width:20px;height:20px;border:none;background:transparent;color:var(--mut);
+  cursor:pointer;border-radius:4px;display:flex;align-items:center;
+  justify-content:center;font-size:11px;transition:all .13s}
+.ab:hover{background:rgba(99,102,241,.18);color:var(--acc)}
+.ab.d:hover{background:rgba(248,113,113,.13);color:var(--red)}
+
+.empty{text-align:center;padding:32px 16px;color:var(--mut)}
+.ei{font-size:26px;margin-bottom:6px}
+
+/* ── Panels ── */
+.panel{background:var(--s1);border-top:2px solid var(--acc);
+  flex-shrink:0;display:none;max-height:330px;overflow-y:auto}
+.panel.open{display:block}
+.panel::-webkit-scrollbar{width:3px}
+.panel::-webkit-scrollbar-thumb{background:var(--bdr)}
+
+.pi{padding:11px 11px 0}
+.pt{font-size:12.5px;font-weight:700;color:var(--acc);margin-bottom:9px;
+  display:flex;align-items:center;gap:5px}
+.row{display:flex;gap:6px;margin-bottom:7px}
+.fi{flex:1;background:var(--s2);border:1px solid var(--bdr);border-radius:6px;
+  padding:6px 8px;color:var(--txt);font-family:inherit;font-size:12px;outline:none;
+  transition:border-color .18s}
+.fi:focus{border-color:var(--acc)}
+.fi::placeholder{color:var(--mut)}
+.fta{width:100%;min-height:70px;resize:none;background:var(--s2);
+  border:1px solid var(--bdr);border-radius:6px;padding:6px 8px;
+  color:var(--txt);font-family:'JetBrains Mono',monospace;font-size:11.5px;
+  outline:none;margin-bottom:6px;transition:border-color .18s;line-height:1.5}
+.fta:focus{border-color:var(--acc)}
+
+/* variable tags */
+.vl{font-size:9.5px;color:var(--mut);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.vtags{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px}
+.vt{background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.25);color:#a5b4fc;
+  font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 5px;
+  border-radius:4px;cursor:pointer;transition:all .13s;user-select:none}
+.vt:hover{background:rgba(99,102,241,.25)}
+
+/* page vars */
+.pvs{margin-bottom:8px}
+.pvl{font-size:9.5px;color:var(--mut);margin-bottom:4px;text-transform:uppercase;
+  letter-spacing:.5px;display:flex;align-items:center;gap:5px}
+.pvbadge{background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);
+  color:#a5b4fc;font-size:9px;padding:1px 5px;border-radius:3px}
+.pvi-list{display:flex;flex-direction:column;gap:3px;margin-bottom:5px}
+.pvi{display:flex;align-items:center;gap:5px;background:var(--s2);
+  border:1px solid var(--bdr);border-radius:6px;padding:5px 7px}
+.pvn{font-family:'JetBrains Mono',monospace;font-size:10px;color:#a5b4fc;
+  font-weight:700;flex-shrink:0}
+.pvs2{flex:1;font-size:10px;color:var(--mut);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pv-ins{font-size:10px;padding:2px 6px;border-radius:4px;
+  border:1px solid rgba(99,102,241,.3);background:rgba(99,102,241,.1);
+  color:#a5b4fc;cursor:pointer;white-space:nowrap;transition:all .13s;
+  font-family:inherit}
+.pv-ins:hover{background:rgba(99,102,241,.25)}
+.pv-del{width:15px;height:15px;border:none;background:transparent;
+  cursor:pointer;color:var(--mut);font-size:10px;display:flex;
+  align-items:center;justify-content:center;transition:color .13s;padding:0}
+.pv-del:hover{color:var(--red)}
+
+.btn-pick{display:flex;align-items:center;justify-content:center;gap:6px;
+  padding:6px 10px;border-radius:6px;border:1px dashed rgba(99,102,241,.4);
+  background:transparent;color:var(--acc);cursor:pointer;font-size:12px;
+  font-family:inherit;font-weight:600;transition:all .13s;width:100%;margin-bottom:8px}
+.btn-pick:hover{background:rgba(99,102,241,.1);border-color:var(--acc)}
+.btn-pick:disabled{opacity:.45;cursor:not-allowed}
+
+.pb{padding:0 11px 11px}
+.bpri{width:100%;padding:8px;background:linear-gradient(135deg,var(--acc),var(--acc2));
+  border:none;border-radius:7px;color:#fff;font-family:inherit;font-size:13px;
+  font-weight:700;cursor:pointer;transition:opacity .14s,transform .1s}
+.bpri:hover{opacity:.9}
+.bpri:active{transform:scale(.98)}
+
+/* ── Settings panel ── */
+.spanel{background:var(--s1);border-top:2px solid var(--acc);
+  padding:11px;flex-shrink:0;display:none}
+.spanel.open{display:block}
+.sr{display:flex;align-items:center;justify-content:space-between;
+  padding:7px 0;border-bottom:1px solid var(--bdr)}
+.sr:last-child{border-bottom:none}
+.srn{font-size:12.5px;font-weight:600}
+.srd{font-size:10.5px;color:var(--mut);margin-top:1px}
+.tog{position:relative;width:34px;height:19px;flex-shrink:0}
+.tog input{display:none}
+.tt{position:absolute;inset:0;background:var(--s3);border-radius:10px;
+  cursor:pointer;transition:background .18s;border:1px solid var(--bdr)}
+.tog input:checked+.tt{background:var(--acc);border-color:var(--acc)}
+.tb{position:absolute;top:2px;left:2px;width:15px;height:15px;
+  background:#fff;border-radius:50%;transition:transform .18s;pointer-events:none}
+.tog input:checked~.tb{transform:translateX(15px)}
+
+/* Prefix row */
+.prefrow{display:flex;align-items:center;gap:8px;
+  margin-top:8px;padding-top:8px;border-top:1px solid var(--bdr)}
+.preflbl{font-size:12px;font-weight:600;flex:1}
+.prefi{width:48px;background:var(--s2);border:1px solid var(--bdr);border-radius:6px;
+  padding:5px;color:var(--acc);font-family:'JetBrains Mono',monospace;
+  font-size:16px;font-weight:700;text-align:center;outline:none;
+  transition:border-color .18s}
+.prefi:focus{border-color:var(--acc)}
+.prefbtn{padding:5px 11px;background:var(--acc);border:none;border-radius:6px;
+  color:#fff;font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer;
+  transition:opacity .13s}
+.prefbtn:hover{opacity:.85}
+.prefhint{font-size:10px;color:var(--mut);margin-top:4px}
+.prefhint code{background:var(--s3);padding:1px 4px;border-radius:3px;
+  color:#a5b4fc;font-family:'JetBrains Mono',monospace}
+
+/* Picker status */
+.picker-status{background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);
+  border-radius:6px;padding:7px 10px;font-size:11.5px;color:#a5b4fc;
+  text-align:center;margin-bottom:8px;display:none}
+.picker-status.show{display:block}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="hdr">
+  <div class="logo">⚡</div>
+  <div class="hdr-t">Snap<b>Text</b></div>
+  <div class="hdr-r">
+    <button class="ib" id="btn-add" title="Snippet hinzufügen">＋</button>
+    <button class="ib" id="btn-set" title="Einstellungen">⚙</button>
+    <button class="ib" id="btn-ext" title="Vollbild-Editor">⊞</button>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat"><div class="sv" id="sc">0</div><div class="sl">Snippets</div></div>
+  <div class="stat"><div class="sv" id="su">0</div><div class="sl">Verwendet</div></div>
+  <div class="stat"><div class="sv" id="ss">0</div><div class="sl">Min gespart</div></div>
+</div>
+
+<!-- Search -->
+<div class="sbar"><input class="srch" id="srch" placeholder="Snippets durchsuchen…"></div>
+
+<!-- Categories -->
+<div class="cats" id="cats"></div>
+
+<!-- Snippet list -->
+<div class="list" id="list"></div>
+
+<!-- Add/Edit Panel -->
+<div class="panel" id="panel">
+  <div class="pi">
+    <div class="pt" id="pt">＋ Neues Snippet</div>
+
+    <div class="row">
+      <input class="fi" id="f-t" placeholder="Trigger z.B. -mfg"
+        style="max-width:130px;font-family:'JetBrains Mono',monospace;font-size:11.5px">
+      <input class="fi" id="f-l" placeholder="Bezeichnung">
+    </div>
+
+    <textarea class="fta" id="f-c"
+      placeholder="Inhalt des Snippets…&#10;Variablen: {{date}}, {{cursor}}, {{clipboard}}&#10;Seitenfeld: {{page:#mein-selector}}"></textarea>
+
+    <!-- Built-in vars -->
+    <div class="vl">Eingebaute Variablen</div>
+    <div class="vtags" id="vtags"></div>
+
+    <!-- Page vars -->
+    <div class="pvs">
+      <div class="pvl">🎯 Seiten-Variablen <span class="pvbadge">Element-Picker</span></div>
+      <div id="picker-status" class="picker-status">
+        🎯 Wechsle zum Browser-Tab und klicke ein Element…
+      </div>
+      <div class="pvi-list" id="pv-list"></div>
+      <button class="btn-pick" id="btn-pick">
+        🎯 Element auf Seite auswählen
+      </button>
+    </div>
+  </div>
+  <div class="pb">
+    <button class="bpri" id="btn-save">⚡ Speichern</button>
+  </div>
+</div>
+
+<!-- Settings Panel -->
+<div class="spanel" id="spanel">
+  <div style="font-size:12.5px;font-weight:700;color:var(--acc);margin-bottom:9px">⚙ Einstellungen</div>
+
+  <div class="sr">
+    <div><div class="srn">Toast-Meldungen</div><div class="srd">Bestätigung nach Expansion</div></div>
+    <label class="tog"><input type="checkbox" id="st-t"><div class="tt"></div><div class="tb"></div></label>
+  </div>
+  <div class="sr">
+    <div><div class="srn">Dropdown anzeigen</div><div class="srd">Vorschläge während Tippen</div></div>
+    <label class="tog"><input type="checkbox" id="st-d"><div class="tt"></div><div class="tb"></div></label>
+  </div>
+
+  <div class="prefrow">
+    <div class="preflbl">Trigger-Präfix</div>
+    <input class="prefi" id="pfi" value="/" maxlength="3">
+    <button class="prefbtn" id="pfbtn">Speichern</button>
+  </div>
+  <div class="prefhint">
+    Jedes Zeichen erlaubt: <code>/</code> <code>-</code> <code>;</code> <code>::</code>
+  </div>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>

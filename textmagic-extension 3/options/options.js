@@ -1,4 +1,4 @@
-// SnapText Options Page Script
+// SnapText Options Page Script v3.0.1
 
 let snippets = [];
 let categories = [];
@@ -33,7 +33,6 @@ function renderAll() {
   renderVarTags();
 }
 
-// Navigation
 document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', () => {
     const page = item.dataset.page;
@@ -53,7 +52,6 @@ function showPage(id) {
   if (id === 'stats') renderStats();
 }
 
-// Snippet list
 function renderSnippetList() {
   const list = document.getElementById('opt-snippet-list');
   const query = (document.getElementById('opt-search')?.value || '').toLowerCase();
@@ -109,7 +107,6 @@ function esc(str) {
   return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// Cat filter in list view
 function renderCatFilter() {
   const sel = document.getElementById('opt-cat-filter');
   if (!sel) return;
@@ -118,7 +115,6 @@ function renderCatFilter() {
     allCats.slice(1).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
 }
 
-// Cat options for form
 function renderCatOptions() {
   const allCats = [...new Set(['Allgemein', ...categories, ...snippets.map(s => s.category).filter(Boolean)])];
   ['opt-category', 'm-category'].forEach(id => {
@@ -130,7 +126,6 @@ function renderCatOptions() {
   });
 }
 
-// Variable tags in add form
 function renderVarTags() {
   const el = document.getElementById('var-tags');
   if (!el) return;
@@ -149,11 +144,9 @@ function renderVarTags() {
   });
 }
 
-// Search + filter listeners
 document.getElementById('opt-search')?.addEventListener('input', renderSnippetList);
 document.getElementById('opt-cat-filter')?.addEventListener('change', renderSnippetList);
 
-// Add / Save
 document.getElementById('opt-save-btn')?.addEventListener('click', async () => {
   const trigger = document.getElementById('opt-trigger').value.trim();
   const label = document.getElementById('opt-label').value.trim();
@@ -192,7 +185,6 @@ document.getElementById('opt-save-btn')?.addEventListener('click', async () => {
 
 document.getElementById('opt-cancel-btn')?.addEventListener('click', () => showPage('snippets'));
 
-// Delete
 async function deleteSnippet(id) {
   if (!confirm('Snippet wirklich löschen?')) return;
   snippets = snippets.filter(s => s.id !== id);
@@ -200,7 +192,6 @@ async function deleteSnippet(id) {
   renderAll();
 }
 
-// Edit Modal
 function openEditModal(id) {
   const s = snippets.find(x => x.id === id);
   if (!s) return;
@@ -238,7 +229,6 @@ document.getElementById('modal-save')?.addEventListener('click', async () => {
   renderAll();
 });
 
-// Stats
 function renderStats() {
   const totalUses = snippets.reduce((a, s) => a + (s.useCount || 0), 0);
   const savedSec = totalUses * 8;
@@ -265,7 +255,6 @@ function renderStats() {
   `).join('') : '<div style="color:var(--text-muted);font-size:13px;padding:16px 0;">Noch keine Verwendungen.</div>';
 }
 
-// Export JSON
 document.getElementById('btn-export-json')?.addEventListener('click', () => {
   const blob = new Blob([JSON.stringify({ version: 1, snippets }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -276,7 +265,6 @@ document.getElementById('btn-export-json')?.addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-// Export CSV
 document.getElementById('btn-export-csv')?.addEventListener('click', () => {
   const rows = [['trigger', 'label', 'content', 'category', 'useCount']];
   snippets.forEach(s => rows.push([s.trigger, s.label || '', s.content.replace(/\n/g, '\\n'), s.category || '', s.useCount || 0]));
@@ -290,7 +278,6 @@ document.getElementById('btn-export-csv')?.addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-// Import
 document.getElementById('import-area')?.addEventListener('click', () => {
   document.getElementById('file-input').click();
 });
@@ -305,11 +292,12 @@ document.getElementById('file-input')?.addEventListener('change', async (e) => {
     const json = JSON.parse(text);
     const imported = json.snippets || (Array.isArray(json) ? json : null);
     if (!imported) throw new Error('Invalid format');
-    // Merge: skip duplicates by trigger
+    
     const existingTriggers = new Set(snippets.map(s => s.trigger));
     const toAdd = imported.filter(s => !existingTriggers.has(s.trigger));
     snippets.push(...toAdd.map(s => ({ ...s, id: s.id || crypto.randomUUID() })));
     await chrome.storage.local.set({ snippets });
+    
     successEl.textContent = `✓ ${toAdd.length} Snippets importiert (${imported.length - toAdd.length} Duplikate übersprungen)`;
     successEl.style.display = 'block';
     errorEl.style.display = 'none';
@@ -321,7 +309,6 @@ document.getElementById('file-input')?.addEventListener('change', async (e) => {
   e.target.value = '';
 });
 
-// Settings – prefix
 let optSettings = { prefix: '/', toastEnabled: true, dropdownEnabled: true };
 
 async function loadSettings() {
@@ -339,8 +326,8 @@ document.getElementById('opt-prefix-save')?.addEventListener('click', async () =
   const val = (document.getElementById('opt-prefix-input')?.value || '').trim();
   if (!val) return alert('Präfix darf nicht leer sein.');
   optSettings.prefix = val;
-  document.getElementById('set-toast') && (optSettings.toastEnabled = document.getElementById('set-toast').checked);
-  document.getElementById('set-dropdown') && (optSettings.dropdownEnabled = document.getElementById('set-dropdown').checked);
+  if (document.getElementById('set-toast')) optSettings.toastEnabled = document.getElementById('set-toast').checked;
+  if (document.getElementById('set-dropdown')) optSettings.dropdownEnabled = document.getElementById('set-dropdown').checked;
   await chrome.storage.local.set({ settings: optSettings });
   const btn = document.getElementById('opt-prefix-save');
   btn.textContent = '✓ Gespeichert';
@@ -368,5 +355,4 @@ document.getElementById('btn-reset')?.addEventListener('click', async () => {
   }
 });
 
-// Init
 loadData();

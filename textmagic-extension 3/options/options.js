@@ -1,27 +1,26 @@
-// SnapText Options Page Script v3.0.1
+// SnapText Options Page Script v3.0.3
 
 let snippets = [];
 let categories = [];
 let editingId = null;
 
 const VARIABLES = [
-  { v: '{{date}}', d: 'Datum' },
-  { v: '{{time}}', d: 'Uhrzeit' },
-  { v: '{{datetime}}', d: 'Datum+Zeit' },
-  { v: '{{weekday}}', d: 'Wochentag' },
-  { v: '{{month}}', d: 'Monat' },
-  { v: '{{year}}', d: 'Jahr' },
-  { v: '{{clipboard}}', d: 'Zwischenablage' },
-  { v: '{{cursor}}', d: 'Cursor-Pos.' },
-  { v: '{{url}}', d: 'URL' },
-  { v: '{{title}}', d: 'Seitentitel' },
-  { v: '{{name}}', d: 'Name' }
+  { v: '{{date}}', d: 'Datum' }, { v: '{{time}}', d: 'Uhrzeit' }, { v: '{{datetime}}', d: 'Datum+Zeit' },
+  { v: '{{weekday}}', d: 'Wochentag' }, { v: '{{month}}', d: 'Monat' }, { v: '{{year}}', d: 'Jahr' },
+  { v: '{{clipboard}}', d: 'Zwischenablage' }, { v: '{{cursor}}', d: 'Cursor-Pos.' },
+  { v: '{{url}}', d: 'URL' }, { v: '{{title}}', d: 'Seitentitel' }, { v: '{{name}}', d: 'Name' }
 ];
 
 async function loadData() {
   const data = await chrome.storage.local.get(['snippets', 'categories']);
   snippets = data.snippets || [];
   categories = data.categories || ['Allgemein'];
+
+  const prefixBox = document.getElementById('opt-prefix-input');
+  if (prefixBox && prefixBox.parentElement) {
+    prefixBox.parentElement.style.display = 'none';
+  }
+
   renderAll();
 }
 
@@ -58,11 +57,7 @@ function renderSnippetList() {
   const catFilter = document.getElementById('opt-cat-filter')?.value || '';
 
   let filtered = snippets;
-  if (query) filtered = filtered.filter(s =>
-    s.trigger.toLowerCase().includes(query) ||
-    (s.label || '').toLowerCase().includes(query) ||
-    s.content.toLowerCase().includes(query)
-  );
+  if (query) filtered = filtered.filter(s => s.trigger.toLowerCase().includes(query) || (s.label || '').toLowerCase().includes(query) || s.content.toLowerCase().includes(query));
   if (catFilter) filtered = filtered.filter(s => s.category === catFilter);
   filtered = [...filtered].sort((a, b) => (b.useCount || 0) - (a.useCount || 0));
 
@@ -103,16 +98,13 @@ function formatDate(ts) {
   return new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
-function esc(str) {
-  return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+function esc(str) { return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function renderCatFilter() {
   const sel = document.getElementById('opt-cat-filter');
   if (!sel) return;
   const allCats = ['', ...new Set(snippets.map(s => s.category).filter(Boolean))];
-  sel.innerHTML = '<option value="">Alle Kategorien</option>' +
-    allCats.slice(1).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  sel.innerHTML = '<option value="">Alle Kategorien</option>' + allCats.slice(1).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
 }
 
 function renderCatOptions() {
@@ -129,9 +121,7 @@ function renderCatOptions() {
 function renderVarTags() {
   const el = document.getElementById('var-tags');
   if (!el) return;
-  el.innerHTML = VARIABLES.map(v =>
-    `<span class="btn-sm" data-var="${v.v}" style="cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;color:#a5b4fc;border-color:rgba(99,102,241,0.35);">${v.v}</span>`
-  ).join('');
+  el.innerHTML = VARIABLES.map(v => `<span class="btn-sm" data-var="${v.v}" style="cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;color:#a5b4fc;border-color:rgba(99,102,241,0.35);">${v.v}</span>`).join('');
   el.querySelectorAll('.btn-sm').forEach(tag => {
     tag.addEventListener('click', () => {
       const ta = document.getElementById('opt-content');
@@ -156,7 +146,7 @@ document.getElementById('opt-save-btn')?.addEventListener('click', async () => {
   const category = catNew || catSel || 'Allgemein';
 
   if (!trigger || !content) return alert('Trigger und Inhalt sind Pflichtfelder.');
-  if (!trigger.startsWith('/')) return alert('Trigger muss mit / beginnen.');
+  if (trigger.includes(' ')) return alert('Der Trigger darf keine Leerzeichen enthalten!');
 
   if (editingId) {
     snippets = snippets.map(s => s.id === editingId ? { ...s, trigger, label, content, category } : s);
@@ -204,15 +194,8 @@ function openEditModal(id) {
   document.getElementById('edit-modal').classList.add('open');
 }
 
-document.getElementById('modal-close')?.addEventListener('click', () => {
-  document.getElementById('edit-modal').classList.remove('open');
-  editingId = null;
-});
-
-document.getElementById('modal-cancel-btn')?.addEventListener('click', () => {
-  document.getElementById('edit-modal').classList.remove('open');
-  editingId = null;
-});
+document.getElementById('modal-close')?.addEventListener('click', () => { document.getElementById('edit-modal').classList.remove('open'); editingId = null; });
+document.getElementById('modal-cancel-btn')?.addEventListener('click', () => { document.getElementById('edit-modal').classList.remove('open'); editingId = null; });
 
 document.getElementById('modal-save')?.addEventListener('click', async () => {
   if (!editingId) return;
@@ -222,6 +205,8 @@ document.getElementById('modal-save')?.addEventListener('click', async () => {
   const category = document.getElementById('m-category').value;
 
   if (!trigger || !content) return alert('Trigger und Inhalt sind Pflichtfelder.');
+  if (trigger.includes(' ')) return alert('Der Trigger darf keine Leerzeichen enthalten!');
+
   snippets = snippets.map(s => s.id === editingId ? { ...s, trigger, label, content, category } : s);
   await chrome.storage.local.set({ snippets });
   editingId = null;
@@ -238,30 +223,33 @@ function renderStats() {
     return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
   })();
 
-  document.getElementById('stats-grid').innerHTML = `
-    <div class="stat-card"><div class="stat-big">${snippets.length}</div><div class="stat-lbl">Snippets</div></div>
-    <div class="stat-card"><div class="stat-big">${totalUses}</div><div class="stat-lbl">Expansionen</div></div>
-    <div class="stat-card"><div class="stat-big">${Math.round(savedSec / 60)}</div><div class="stat-lbl">Minuten gespart</div></div>
-    <div class="stat-card"><div class="stat-big" style="font-size:16px;">${topCat}</div><div class="stat-lbl">Top Kategorie</div></div>
-  `;
+  const statsGrid = document.getElementById('stats-grid');
+  if(statsGrid) {
+    statsGrid.innerHTML = `
+      <div class="stat-card"><div class="stat-big">${snippets.length}</div><div class="stat-lbl">Snippets</div></div>
+      <div class="stat-card"><div class="stat-big">${totalUses}</div><div class="stat-lbl">Expansionen</div></div>
+      <div class="stat-card"><div class="stat-big">${Math.round(savedSec / 60)}</div><div class="stat-lbl">Minuten gespart</div></div>
+      <div class="stat-card"><div class="stat-big" style="font-size:16px;">${topCat}</div><div class="stat-lbl">Top Kategorie</div></div>
+    `;
+  }
 
   const top = [...snippets].sort((a, b) => (b.useCount || 0) - (a.useCount || 0)).slice(0, 8);
-  document.getElementById('top-snippets').innerHTML = top.length ? top.map(s => `
-    <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);">
-      <span class="trigger-badge">${esc(s.trigger)}</span>
-      <span style="flex:1;font-size:13px;">${esc(s.label || s.content.slice(0, 40))}</span>
-      <span class="uses-count">${s.useCount || 0}×</span>
-    </div>
-  `).join('') : '<div style="color:var(--text-muted);font-size:13px;padding:16px 0;">Noch keine Verwendungen.</div>';
+  const topSnippetsContainer = document.getElementById('top-snippets');
+  if(topSnippetsContainer) {
+    topSnippetsContainer.innerHTML = top.length ? top.map(s => `
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);">
+        <span class="trigger-badge">${esc(s.trigger)}</span>
+        <span style="flex:1;font-size:13px;">${esc(s.label || s.content.slice(0, 40))}</span>
+        <span class="uses-count">${s.useCount || 0}×</span>
+      </div>
+    `).join('') : '<div style="color:var(--text-muted);font-size:13px;padding:16px 0;">Noch keine Verwendungen.</div>';
+  }
 }
 
 document.getElementById('btn-export-json')?.addEventListener('click', () => {
   const blob = new Blob([JSON.stringify({ version: 1, snippets }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `snaptext-backup-${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
+  const a = document.createElement('a'); a.href = url; a.download = `snaptext-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
   URL.revokeObjectURL(url);
 });
 
@@ -271,16 +259,11 @@ document.getElementById('btn-export-csv')?.addEventListener('click', () => {
   const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `snaptext-${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
+  const a = document.createElement('a'); a.href = url; a.download = `snaptext-${new Date().toISOString().slice(0,10)}.csv`; a.click();
   URL.revokeObjectURL(url);
 });
 
-document.getElementById('import-area')?.addEventListener('click', () => {
-  document.getElementById('file-input').click();
-});
+document.getElementById('import-area')?.addEventListener('click', () => document.getElementById('file-input').click());
 
 document.getElementById('file-input')?.addEventListener('change', async (e) => {
   const file = e.target.files[0];
@@ -299,40 +282,24 @@ document.getElementById('file-input')?.addEventListener('change', async (e) => {
     await chrome.storage.local.set({ snippets });
     
     successEl.textContent = `✓ ${toAdd.length} Snippets importiert (${imported.length - toAdd.length} Duplikate übersprungen)`;
-    successEl.style.display = 'block';
-    errorEl.style.display = 'none';
+    successEl.style.display = 'block'; errorEl.style.display = 'none';
     renderAll();
   } catch (err) {
-    errorEl.style.display = 'block';
-    successEl.style.display = 'none';
+    errorEl.style.display = 'block'; successEl.style.display = 'none';
   }
   e.target.value = '';
 });
 
-let optSettings = { prefix: '/', toastEnabled: true, dropdownEnabled: true };
+let optSettings = { toastEnabled: true, dropdownEnabled: true };
 
 async function loadSettings() {
   const data = await chrome.storage.local.get('settings');
   if (data.settings) optSettings = { ...optSettings, ...data.settings };
-  const pi = document.getElementById('opt-prefix-input');
-  if (pi) pi.value = optSettings.prefix || '/';
   const st = document.getElementById('set-toast');
   const sd = document.getElementById('set-dropdown');
   if (st) st.checked = optSettings.toastEnabled !== false;
   if (sd) sd.checked = optSettings.dropdownEnabled !== false;
 }
-
-document.getElementById('opt-prefix-save')?.addEventListener('click', async () => {
-  const val = (document.getElementById('opt-prefix-input')?.value || '').trim();
-  if (!val) return alert('Präfix darf nicht leer sein.');
-  optSettings.prefix = val;
-  if (document.getElementById('set-toast')) optSettings.toastEnabled = document.getElementById('set-toast').checked;
-  if (document.getElementById('set-dropdown')) optSettings.dropdownEnabled = document.getElementById('set-dropdown').checked;
-  await chrome.storage.local.set({ settings: optSettings });
-  const btn = document.getElementById('opt-prefix-save');
-  btn.textContent = '✓ Gespeichert';
-  setTimeout(() => btn.textContent = 'Speichern', 1500);
-});
 
 document.getElementById('set-toast')?.addEventListener('change', async () => {
   optSettings.toastEnabled = document.getElementById('set-toast').checked;
@@ -343,16 +310,13 @@ document.getElementById('set-dropdown')?.addEventListener('change', async () => 
   await chrome.storage.local.set({ settings: optSettings });
 });
 
-loadSettings();
-
 document.getElementById('btn-reset')?.addEventListener('click', async () => {
   if (confirm('ACHTUNG: Alle Snippets werden dauerhaft gelöscht! Fortfahren?')) {
     await chrome.storage.local.clear();
-    snippets = [];
-    categories = ['Allgemein'];
-    renderAll();
-    alert('Alle Daten gelöscht.');
+    snippets = []; categories = ['Allgemein'];
+    renderAll(); alert('Alle Daten gelöscht.');
   }
 });
 
+loadSettings();
 loadData();

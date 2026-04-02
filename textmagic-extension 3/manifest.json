@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SnapText – Text Expander",
-  "version": "3.0.3",
-  "description": "Text-Expander mit Zendesk-Support, Element-Picker und freier Trigger-Wahl.",
+  "version": "3.0.4",
+  "description": "Text-Expander mit Iframe-Support (Zendesk), Element-Picker und freier Trigger-Wahl.",
   "permissions": [
     "storage",
     "activeTab",
@@ -20,7 +20,7 @@
       "matches": ["<all_urls>"],
       "js": ["content/content.js"],
       "run_at": "document_idle",
-      "all_frames": false
+      "all_frames": true
     }
   ],
   "action": {

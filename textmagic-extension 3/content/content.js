@@ -1,4 +1,4 @@
-// SnapText Content Script v3.0.2 - Full Fix
+// SnapText Content Script v3.0.3
 (function () {
   'use strict';
   if (window.__snapTextV3) return;
@@ -45,7 +45,9 @@
   }
 
   function textBeforeCaret(el) {
-    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') return el.value.substring(0, el.selectionStart);
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+      return el.value.substring(0, el.selectionStart);
+    }
     if (el.isContentEditable) {
       const sel = window.getSelection();
       if (!sel || !sel.rangeCount) return '';
@@ -58,14 +60,7 @@
     return '';
   }
 
-  // Findet das aktuelle Wort vor dem Cursor (ohne festes Präfix)
-  function getBufferAtCaret(text) {
-    let i = text.length - 1;
-    while (i >= 0 && text[i] !== ' ' && text[i] !== '\n' && text[i] !== '\t' && text[i] !== '\xA0') i--;
-    return text.substring(i + 1);
-  }
-
-  async function expandSnippet(targetEl, snippet, triggerLen) {
+  async function expandSnippet(targetEl, snippet, charsToDelete) {
     hideDropdown();
     let content = await resolveVars(snippet.content);
     const hasCursor = content.includes('{{cursor}}');
@@ -73,33 +68,26 @@
     const clean = content.replace('{{cursor}}', '');
 
     if (targetEl.tagName === 'INPUT' || targetEl.tagName === 'TEXTAREA') {
-      insertIntoInput(targetEl, clean, triggerLen, hasCursor, cursorIdx);
-    } else if (targetEl.isContentEditable) {
-      insertIntoContentEditable(targetEl, clean, triggerLen, hasCursor, cursorIdx);
+      insertIntoInput(targetEl, clean, charsToDelete, hasCursor, cursorIdx);
     } else {
-      const inner = targetEl.querySelector('[contenteditable="true"],textarea,input');
-      if (inner) {
-        inner.focus();
-        if (inner.tagName === 'INPUT' || inner.tagName === 'TEXTAREA') insertIntoInput(inner, clean, triggerLen, hasCursor, cursorIdx);
-        else insertIntoContentEditable(inner, clean, triggerLen, hasCursor, cursorIdx);
-      }
+      insertIntoContentEditable(targetEl, clean, charsToDelete, hasCursor, cursorIdx);
     }
 
     chrome.runtime.sendMessage({ type: 'INCREMENT_USE', id: snippet.id });
     if (settings.toastEnabled !== false) showToast(snippet.label || snippet.trigger);
   }
 
-  // ZENDESK & REACT FIX
   function insertIntoInput(el, clean, triggerLen, hasCursor, cursorIdx) {
     const pos = el.selectionStart;
-    const before = el.value.substring(0, pos - triggerLen);
+    const before = el.value.substring(0, Math.max(0, pos - triggerLen));
     const after  = el.value.substring(pos);
+    const fullText = before + clean + after;
 
     const setter = Object.getOwnPropertyDescriptor(
       el.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype, 'value'
     )?.set;
-    if (setter) setter.call(el, before + clean + after);
-    else el.value = before + clean + after;
+    if (setter) setter.call(el, fullText);
+    else el.value = fullText;
 
     el.dispatchEvent(new InputEvent('input',  { bubbles: true, inputType: 'insertText', data: clean }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -165,7 +153,7 @@
     dropdown = mkEl('div', {
       position:'fixed', zIndex:'2147483647', background:'#1a1730', border:'1px solid #4f46e5',
       borderRadius:'11px', overflow:'hidden', boxShadow:'0 12px 48px rgba(79,70,229,.55)',
-      minWidth:'290px', maxWidth:'420px', fontFamily:'system-ui,sans-serif', fontSize:'13px', color:'#e0e7ff',
+      minWidth:'290px', maxWidth:'420px', fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif', fontSize:'13px', color:'#e0e7ff',
     });
 
     const r = anchorEl.getBoundingClientRect();
@@ -181,7 +169,7 @@
     const hilite = idx => rows.forEach((r, i) => r.style.background = i === idx ? 'rgba(99,102,241,.2)' : 'transparent');
 
     matches.slice(0, 8).forEach((sn, idx) => {
-      const row = mkEl('div', { display:'flex', alignItems:'center', gap:'10px', padding:'9px 14px', cursor:'pointer', background: idx===0?'rgba(99,102,241,.2)':'transparent' });
+      const row = mkEl('div', { display:'flex', alignItems:'center', gap:'10px', padding:'9px 14px', cursor:'pointer' });
       const badge = mkEl('span', { background:'#312e81', padding:'2px 8px', borderRadius:'5px', fontSize:'11px', fontWeight:'700', color:'#a5b4fc', fontFamily:'monospace' });
       badge.textContent = sn.trigger;
       const info = mkEl('div', { flex:'1', minWidth:'0' });
@@ -193,6 +181,7 @@
       dropdown.appendChild(row); rows.push(row);
     });
 
+    hilite(0);
     document.body.appendChild(dropdown);
 
     dropdown._nav = e => {
@@ -218,7 +207,6 @@
     setTimeout(() => t.remove(), 1800);
   }
 
-  // HAUPT-LOGIK FÜR TASTATUREINGABEN (Ohne globalen Präfix-Zwang)
   document.addEventListener('keyup', e => {
     if (['Shift','Control','Alt','Meta','CapsLock','Dead'].includes(e.key)) return;
     if (dropdown && ['ArrowDown','ArrowUp','Enter','Tab','Escape'].includes(e.key)) return;
@@ -227,39 +215,28 @@
     if (!el) { hideDropdown(); return; }
 
     const text = textBeforeCaret(el);
-    const buffer = getBufferAtCaret(text);
+    if (!text) { hideDropdown(); return; }
 
-    if (!buffer) { hideDropdown(); return; }
+    const match = text.match(/(\S+)(\s*)$/);
+    if (!match) { hideDropdown(); return; }
 
-    // Bei Space/Tab prüfen, ob das exakte Wort ein Snippet ist (z.B. "!test" oder "/mfg")
-    if (e.key === ' ' || e.key === 'Tab') {
-      const exact = snippets.find(s => s.trigger === buffer);
-      if (exact) {
-        if (e.key === 'Tab') e.preventDefault();
-        else if (e.key === ' ') {
-          if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-            const pos = el.selectionStart;
-            const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value')?.set;
-            const newVal = el.value.substring(0, pos - 1) + el.value.substring(pos);
-            if (setter) setter.call(el, newVal); else el.value = newVal;
-            el.setSelectionRange(pos - 1, pos - 1);
-          } else {
-            try { document.execCommand('delete', false); } catch {}
-          }
-        }
-        expandSnippet(el, exact, buffer.length);
-        return;
-      }
+    const triggerWord = match[1];
+    const trailingSpace = match[2];
+
+    const exactMatch = snippets.find(s => s.trigger === triggerWord);
+
+    if (exactMatch && (e.key === ' ' || e.key === 'Tab' || e.key === 'Enter')) {
+      if (e.key === 'Tab') e.preventDefault();
+      const charsToDelete = triggerWord.length + trailingSpace.length;
+      expandSnippet(el, exactMatch, charsToDelete);
+      return;
     }
 
-    // Dropdown anzeigen für partielle Matches (sobald Sonderzeichen + 1 Buchstabe, z.B. "/m")
-    const matches = snippets.filter(s => s.trigger.startsWith(buffer));
-    if (buffer.length > 0) {
-      const isSpecial = !/^[a-zA-Z0-9]/.test(buffer);
-      if ((isSpecial && buffer.length >= 2) || buffer.length >= 3) {
-        if (matches.length) { showDropdown(el, matches, buffer); return; }
-      }
+    if (trailingSpace === '' && triggerWord.length >= 2) {
+      const matches = snippets.filter(s => s.trigger.startsWith(triggerWord));
+      if (matches.length) { showDropdown(el, matches, triggerWord); return; }
     }
+    
     hideDropdown();
   }, true);
 
@@ -272,7 +249,6 @@
 
   document.addEventListener('click', e => { if (dropdown && !dropdown.contains(e.target)) hideDropdown(); }, true);
 
-  // PICKER LOGIC (Element Selektor)
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.type === 'START_PICKER') { startPicker(msg.varName, sendResponse); return true; }
   });
